@@ -2,36 +2,36 @@
 #include<mpi.h>
 #include<time.h>
 #include<stdlib.h>
-#define N 100
-#define start 2
-#define dest 70
+#define N 16
+#define start 0
+#define dest 8
 
 int main(int argc, char** argv){
 	int rank, np;
 	MPI_Init(&argc, &argv);
 	int graph[N][N], com[N][N];
-	int i,j, resumeIdx;
+	int i,j,k, resumeIdx;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
 	int batch = N/np;
 	
 	if(rank == 0){
+		FILE *file;
+		file = fopen("Mat.txt", "r");
 		for(i=0;i<N;i++) {
-			graph[i][i] = 0;
-			com[i][i] = 0;
-			for(j=i+1;j<N;j++) {
-				graph[i][j] = rand()%2;
-				graph[j][i] = com[j][i] = com[i][j] = graph[i][j];
+			for(j=0;j<N;j++) {
+				fscanf(file, "%d", &k);
+				graph[i][j] = k;
+				com[i][j] = k;
 			}
 		}
-		
+		fclose(file);
 		clock_t stime = clock();
 		int l = 2;
 		for(i=1;i<np;i++) {
 			MPI_Send(&graph, N*N, MPI_INT, i, 0, MPI_COMM_WORLD); 
 		}
-		if(graph[start][dest] != 0) {
-			printf("The length of the path is 1\n");
+		if(com[start][dest] != 0) {
 			resumeIdx = 0;
 			l = 1;
 			resumeIdx = 0;
@@ -40,17 +40,20 @@ int main(int argc, char** argv){
 			}
 		}
 		resumeIdx = 1;
-		while(l!=1 && l<=N) {
-			for(int i = 1;i<np;i++){
+		while(l!=1 && l<N) {
+			for(i = 1;i<np;i++){
 				MPI_Send(&resumeIdx, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 				MPI_Send(&com[i*batch][0], batch*N, MPI_INT, i, 0, MPI_COMM_WORLD);
 			}
 			
-			int a[N][N], k;
+			int a[N][N] = {0};
+			for(i = 0;i<N;i++)
+				for(j=0;j<N;j++)
+					a[i][j] = 0;
 			for(i = 0; i< batch;i++){
-				for(j=0;j<N;j++){
-					for(k=0;k<N;k++){
-						a[i][j] = com[i][k] * graph[k][j];
+				for(k=0;k<N;k++){
+					for(j=0;j<N;j++){
+						a[i][j] += com[i][k] * graph[k][j];
 					}
 				}
 			}
@@ -63,8 +66,7 @@ int main(int argc, char** argv){
 			for(i=1;i<np;i++) {
 				MPI_Recv(&com[i*batch][0], batch*N, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 			}
-			if(graph[start][dest] != 0) {
-				printf("The length of the path is %d\n", l);
+			if(com[start][dest] != 0) {
 				resumeIdx = 0;
 				for(i = 1;i<np;i++){
 					MPI_Send(&resumeIdx, 1, MPI_INT, i, 0, MPI_COMM_WORLD); 
@@ -76,17 +78,21 @@ int main(int argc, char** argv){
 			}
 		}
 		
-		if(l>N){
+		if(l>=N){
 			resumeIdx = 0;
 			for(i = 1;i<np;i++){
 				MPI_Send(&resumeIdx, 1, MPI_INT, i, 0, MPI_COMM_WORLD); 
 			}
+			
 		}
 		
 		clock_t end = clock() - stime;
 		float d = ((double)end)/CLOCKS_PER_SEC;
 		printf("%fsec\n", d);
-		
+		if(l<N)
+			printf("Length is %d\n", l);
+		else
+			printf("There is no path between %d and %d\n", start, dest);
 	} 
 	
 	
@@ -99,10 +105,13 @@ int main(int argc, char** argv){
 				break;
 			}
 			MPI_Recv(&com[0][0], N*N, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			for(i = 0;i<N;i++)
+				for(j=0;j<N;j++)
+					a[i][j] = 0;
 			for(i = 0; i< batch;i++){
-				for(j=0;j<N;j++){
-					for(k=0;k<N;k++){
-						a[i][j] = com[i][k] * graph[k][j];
+				for(k=0;k<N;k++){
+					for(j=0;j<N;j++){
+						a[i][j] += com[i][k] * graph[k][j];
 					}
 				}
 			}

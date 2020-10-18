@@ -2,8 +2,9 @@
 #include<stdlib.h>
 #include<mpi.h>
 #include<math.h>
+#include<time.h>
 #define N 16
-#define s 1
+#define s 0
 #define d 8
 
 int main(int argc, char** argv){
@@ -38,7 +39,7 @@ int main(int argc, char** argv){
 		temp[i] = ((int*)(temp+matSize) + matSize*i);
 	}
 	FILE *file;
-	file = fopen("16Mat.txt", "r");
+	file = fopen("Mat.txt", "r");
 	int it = 0;
 	int prR,prC, pr, c;
 	prC = rank%dims[0];
@@ -61,6 +62,9 @@ int main(int argc, char** argv){
 	
 	len = 1;
 	prC = rank%dims[0];
+	MPI_Barrier(gridWorld);
+	
+	clock_t stime = clock();
 	for(l = 0; l<prC; l++){
 		MPI_Sendrecv(B+matSize,matSize*matSize,MPI_INT,up,2,temp+matSize,matSize*matSize, MPI_INT,down,2,gridWorld,&status);
 		for(int i=0;i<matSize;i++)
@@ -111,8 +115,11 @@ int main(int argc, char** argv){
 		}
 		len++;
 	}
-	
+	MPI_Barrier(gridWorld);
+	clock_t end = clock();
+	float timeSpent = ((double)end)/CLOCKS_PER_SEC;
 	if(rank == 0){
+		printf("time: %fsec\n", timeSpent);
 		if(len<N)
 	 		printf("Length is %d\n", len);
 	 	else
